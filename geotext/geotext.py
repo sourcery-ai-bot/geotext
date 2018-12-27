@@ -12,7 +12,7 @@ def get_data_path(path):
     return os.path.join(_ROOT, 'data', path)
 
 
-def read_table(filename, usecols=(0, 1), sep='\t', comment='#', encoding='utf-8', skip=0):
+def read_table(filename, keycols=(0,), valcol=1, sep='\t', comment='#', encoding='utf-8', skip=0):
     """Parse data files from the data directory
 
     Parameters
@@ -20,10 +20,12 @@ def read_table(filename, usecols=(0, 1), sep='\t', comment='#', encoding='utf-8'
     filename: string
         Full path to file
 
-    usecols: list, default [0, 1]
-        A list of two elements representing the columns to be parsed into a dictionary.
-        The first element will be used as keys and the second as values. Defaults to
-        the first two columns of `filename`.
+    keycols: list, default [0]
+        A list of at least one int representing the columns to be used as keys
+        for this dictionary
+
+    valcol: int
+        Index of the column containing the values to be saved into a dictionary
 
     sep : string, default '\t'
         Field delimiter.
@@ -54,9 +56,10 @@ def read_table(filename, usecols=(0, 1), sep='\t', comment='#', encoding='utf-8'
         d = dict()
         for line in lines:
             columns = line.split(sep)
-            key = columns[usecols[0]].lower()
-            value = columns[usecols[1]].rstrip('\n')
-            d[key] = value
+            value = columns[valcol].rstrip('\n')
+            for key_index in keycols:
+                key = columns[key_index].lower()
+                d[key] = value
     return d
 
 
@@ -72,10 +75,10 @@ def build_index():
 
     # parse http://download.geonames.org/export/dump/countryInfo.txt
     countries = read_table(
-        get_data_path('countryInfo.txt'), usecols=[4, 0], skip=1)
+        get_data_path('countryInfo.txt'), keycols=[4], valcol=0, skip=1)
 
     # parse http://download.geonames.org/export/dump/cities15000.zip
-    cities = read_table(get_data_path('cities15000.txt'), usecols=[1, 8])
+    cities = read_table(get_data_path('cities15000.txt'), keycols=[1, 2], valcol=8)
 
     # load and apply city patches
     city_patches = read_table(get_data_path('citypatches.txt'))

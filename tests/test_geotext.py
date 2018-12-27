@@ -96,6 +96,13 @@ class TestGeotext(unittest.TestCase):
         ]                
         self.assertEqual(result, expected)
 
+        result = geotext.GeoText('Istanbul').cities
+        # Istanbul is the ASCII name for İstanbul
+        expected = [
+            'Istanbul'
+        ]
+        self.assertEqual(result, expected)
+
     def test_nationalities(self):
 
         text = 'Japanese people like anime. French people often drink wine. Chinese people enjoy fireworks.'
