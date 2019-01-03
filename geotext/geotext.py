@@ -2,6 +2,7 @@
 
 from collections import namedtuple, Counter, OrderedDict
 import re
+import string
 import os
 import io
 
@@ -58,7 +59,7 @@ def read_table(filename, keycols=(0,), valcol=1, sep='\t', comment='#', encoding
             columns = line.split(sep)
             value = columns[valcol].rstrip('\n')
             for key_index in keycols:
-                key = columns[key_index].lower()
+                key = normalize(columns[key_index].lower())
                 d[key] = value
     return d
 
@@ -88,6 +89,20 @@ def build_index():
     return Index(nationalities, cities, countries)
 
 
+def normalize(s):
+    """Normalize punctuation and whitespace in location names and strings
+
+    Returns
+    -------
+    String with some punctuation removed and some punctuation replace
+    with spaces.
+    """
+    s = s.replace('.', '')
+    s = re.sub(r'[,\-]', ' ', s)
+    tokens = [t.strip(string.punctuation) for t in s.split()]
+    return ' '.join(t for t in tokens if t)
+
+
 class GeoText(object):
 
     """Extract cities and countries from a text
@@ -106,11 +121,30 @@ class GeoText(object):
 
     index = build_index()
 
-    def __init__(self, text, country=None):
-        city_regex = r"[A-ZÀ-Ú]+[a-zà-ú]+[ \-]?(?:d[a-u].)?(?:[A-ZÀ-Ú]+[a-zà-ú]+)*"
-        candidates = re.findall(city_regex, text)
-        # Removing white spaces from candidates
-        candidates = [candidate.strip() for candidate in candidates]
+    def __init__(self, text, country=None, aggressive=False):
+        """
+        Parameters
+        ----------
+        country: string
+            Limit city matches to the country with this country code\
+
+        aggressive: bool
+            If True, be more liberal in finding candidate location names.  Ignore
+            capitalization and some punctuation, and accept a wider range of
+            characters.  This may be much slower for long text.
+        """
+        if aggressive:
+            tokens = normalize(text).split()
+            candidates = {
+                ' '.join(tokens[i:i + length])
+                for i in range(len(tokens))
+                for length in range(1, 5)  # Assumes location names will be 4 words long at most
+            }
+        else:
+            city_regex = r"[A-ZÀ-Ú]+[a-zà-ú]+[ \-]?(?:d[a-u].)?(?:[A-ZÀ-Ú]+[a-zà-ú]+)*"
+            candidates = re.findall(city_regex, text)
+            # Removing white spaces and normalizing punctuation from candidates
+            candidates = [normalize(candidate) for candidate in candidates]
         self.countries = [each for each in candidates
                           if each.lower() in self.index.countries]
         self.cities = [each for each in candidates
