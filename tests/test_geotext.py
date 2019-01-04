@@ -81,7 +81,7 @@ class TestGeotext(unittest.TestCase):
 
         brazillians_south_capitals = """As capitais da região sul são:
                                         Porto Alegre no Rio Grande do Sul,
-                                        Floripa em Santa Catarina,
+                                        Santa Catarina,
                                         Curitiba no Paraná"""
         result = geotext.GeoText(brazillians_south_capitals).cities
         # PS: 'Rio Grande' is not a south city, but is a brazilian city
@@ -96,10 +96,10 @@ class TestGeotext(unittest.TestCase):
         ]
         self.assertEqual(result, expected)
 
-        result = geotext.GeoText('Istanbul').cities
-        # Istanbul is the ASCII name for İstanbul
+        result = geotext.GeoText('Floripa! Istanbul! Bukarest!').cities
+        # Istanbul is the ASCII name for İstanbul, Bucureşti is Romanian for Bucharest
         expected = [
-            'Istanbul'
+            'Floripa', 'Istanbul', 'Bukarest',
         ]
         self.assertEqual(result, expected)
 
@@ -127,10 +127,10 @@ class TestGeotext(unittest.TestCase):
         self.assertEqual(result, expected)
 
     def test_aggressive(self):
-        text = 'Washington, D.C., paris? and INDIA!'
+        text = 'Washington, D.C., paris? INDIA, 日本, and București!'
         result = geotext.GeoText(text, aggressive=True)
-        expected_countries = {'INDIA'}
-        expected_cities = {'paris', 'Washington', 'Washington DC'}
+        expected_countries = {'INDIA', '日本'}
+        expected_cities = {'paris', 'Washington', 'Washington DC', 'București'}
         self.assertEqual(set(result.countries), expected_countries)
         self.assertEqual(set(result.cities), expected_cities)
 
