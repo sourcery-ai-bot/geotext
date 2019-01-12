@@ -106,7 +106,7 @@ class TestGeotext(unittest.TestCase):
     def test_nationalities(self):
 
         text = 'Japanese people like anime. French people often drink wine. Chinese people enjoy fireworks.'
-        result = geotext.GeoText(text).nationalities
+        result = geotext.GeoText(text, aggressive=True).nationalities
         expected = ['Japanese', 'French', 'Chinese']
         self.assertEqual(result, expected)
 
@@ -127,13 +127,40 @@ class TestGeotext(unittest.TestCase):
         self.assertEqual(result, expected)
 
     def test_aggressive(self):
+
         text = 'Washington, D.C., paris? INDIA, 日本, and București!'
         result = geotext.GeoText(text, aggressive=True)
         expected_countries = {'INDIA', '日本'}
-        expected_cities = {'paris', 'Washington', 'Washington DC', 'București'}
+        expected_cities = {'paris', 'Washington DC', 'București'}
         self.assertEqual(set(result.countries), expected_countries)
         self.assertEqual(set(result.cities), expected_cities)
 
+    def test_admin_divisions(self):
+
+        text = 'The sun is nice in Florida and the snow is nice in Hokkaido'
+        result = geotext.GeoText(text).admin_divisions
+        expected = ['Florida', 'Hokkaido']
+        self.assertEqual(result, expected)
+
+    def test_match_length(self):
+
+        text = 'These should only be cities: San Francisco, New York City'
+        expected_cities = ['San Francisco', 'New York City']  # should not match "San" or "York"
+        expected_admin_divisions = []  # should not match the U.S. state, "New York"
+
+        result = geotext.GeoText(text, aggressive=True)
+        self.assertEqual(result.cities, expected_cities)
+        self.assertEqual(result.admin_divisions, expected_admin_divisions)
+
+        text = 'I am not sure what city you mean by San Francisco Beltrao'
+        result = geotext.GeoText(text, aggressive=True).cities
+        expected = ['San Francisco', 'Francisco Beltrao']  # should not match "San" or "York"
+        self.assertEqual(result, expected)
+
+        text = 'I am not sure what city you mean by La Isla Vista'
+        result = geotext.GeoText(text, aggressive=True).cities
+        expected = ['La Isla', 'Isla Vista']  # should not match "Vista"
+        self.assertEqual(result, expected)
 
     def tearDown(self):
         pass
