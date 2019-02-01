@@ -19,7 +19,7 @@ test_requirements = [
 
 setup(
     name='geotext',
-    version='0.4.0.tubular1',
+    version='0.5.0.tubular1',
     description='Geotext extracts countriy and city mentions from text',
     long_description=readme + '\n\n' + history,
     author='Yaser Martinez Palenzuela',

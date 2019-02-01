@@ -122,8 +122,31 @@ class TestGeotext(unittest.TestCase):
     def test_country_mentions(self):
 
         text = 'I would like to visit Lima, Dublin and Moscow (Russia).'
-        result = geotext.GeoText(text).country_mentions
-        expected = {'PE': 1, 'IE': 1, 'RU': 2}
+        result = list(geotext.GeoText(text).country_mentions.items())
+        expected = [('RU', 2), ('PE', 1), ('IE', 1)]
+        self.assertEqual(result, expected)
+
+        text = 'Atlanta, Georgia'
+        result = list(geotext.GeoText(text).country_mentions.items())
+        expected = [('US', 2), ('GE', 1)]
+        self.assertEqual(result, expected)
+
+        text = 'Tbilisi, Georgia'
+        result = list(geotext.GeoText(text).country_mentions.items())
+        expected = [('GE', 2), ('US', 1)]
+        self.assertEqual(result, expected)
+
+        # The US state, Georgia has higher population than the country, Georgia
+        text = 'Georgia'
+        result = list(geotext.GeoText(text).country_mentions.items())
+        expected = [('US', 1), ('GE', 1)]
+        self.assertEqual(result, expected)
+
+        # New York is both a city and an admin_division in US, but it should only count as one
+        # country mention for each time it appears in the text.
+        text = 'I was born in New York, raised in New York, and will die in New York'
+        result = list(geotext.GeoText(text).country_mentions.items())
+        expected = [('US', 3)]
         self.assertEqual(result, expected)
 
     def test_aggressive(self):
@@ -137,16 +160,16 @@ class TestGeotext(unittest.TestCase):
 
     def test_admin_divisions(self):
 
-        text = 'The sun is nice in Florida and the snow is nice in Hokkaido'
+        text = 'Essex is bewteen sunny Florida and snowy Hokkaido'
         result = geotext.GeoText(text).admin_divisions
-        expected = ['Florida', 'Hokkaido']
+        expected = ['Essex', 'Florida', 'Hokkaido']
         self.assertEqual(result, expected)
 
     def test_match_length(self):
 
-        text = 'These should only be cities: San Francisco, New York City'
+        text = 'These should be cities: San Francisco, New York City'
         expected_cities = ['San Francisco', 'New York City']  # should not match "San" or "York"
-        expected_admin_divisions = []  # should not match the U.S. state, "New York"
+        expected_admin_divisions = ['San Francisco']  # should not match the U.S. state, "New York"
 
         result = geotext.GeoText(text, aggressive=True)
         self.assertEqual(result.cities, expected_cities)
@@ -162,9 +185,37 @@ class TestGeotext(unittest.TestCase):
         expected = ['La Isla', 'Isla Vista']  # should not match "Vista"
         self.assertEqual(result, expected)
 
+    def test_suffixed_matches(self):
+
+        text = 'I went to school in Essex, UK, but now I live in Essex, MD.'
+        result = geotext.GeoText(text, aggressive=True)
+        expected_cities = ['Essex MD']
+        expected_admin = ['Essex UK']
+        self.assertEqual(result.cities, expected_cities)
+        self.assertEqual(result.admin_divisions, expected_admin)
+
+    def test_custom_aliases(self):
+
+        text = 'I spend my time commuting between NY and the bay area.'
+        result = geotext.GeoText(text, aggressive=True).cities
+        expected = ['NY', 'bay area']
+        self.assertEqual(result, expected)
+
+    def test_blacklist(self):
+        # "OF", "Bay", and "Eastern" are blacklisted cities/admin_divisions.
+        # "La" should be filtered out because it is too short and contains lower case, unlike "LA"
+        text = (
+            'OF COURSE, La La Land was a good movie, but I wish it were directed by Michael Bay'
+            'and filmed in Eastern LA or 中国.'
+        )
+        result = geotext.GeoText(text, aggressive=True)
+        expected_cities = ['LA']
+        expected_countries = ['中国']
+        self.assertEqual(result.cities, expected_cities)
+        self.assertEqual(result.countries, expected_countries)
+
     def tearDown(self):
         pass
-
 
 if __name__ == '__main__':
     unittest.main()

@@ -2,6 +2,23 @@
 
 History
 -------
+0.5.0.tubular1 (2019-01-30)
+++++++++++++++++++
+Instead of adding all top-level administrative divisions, add all administrative divisions with
+population of at least 15000. This adds places like "Essex, England" and removes places like
+"Portland, Jamaica".
+Add support for a small number of custom aliases.
+Add a few more common words to the blacklist, like "can" and "of".
+Automatically blacklist 2-character strings if they contain lower-case, to prevent something like
+"la liga" to match "LA" (Los Angeles).
+Include country and state abbreviations when matching to improve disambiguation between places like
+"Cambridge, MA" and "Cambridge, UK".
+When calculating country mentions, use maximum population of matched entities to break ties
+when multiple countries were mentioned the most often.
+GeoText.index entries now map strings to (country_code, population) tuples instead of just
+country_codes.
+
+
 0.4.0.tubular1 (2019-01-14)
 ++++++++++++++++++
 For cities with the same name, choose the most populous city when deciding which country to use
