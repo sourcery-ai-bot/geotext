@@ -78,13 +78,13 @@ cypriot:CY
 czech:CZ
 dane:DK
 dominican:DM
-dominican: Do
+dominican:DO
 dutch:NL
 east Timorese:TL
 ecuadorian:EC
 egyptian:EG
 emirati:AE
-english:UK
+english:GB
 eritrean:ER
 estonian:EE
 ethiopian:ET
@@ -187,7 +187,7 @@ swiss:SZ
 syrian:SY
 taiwanese:TW
 tanzanian:TZ
-thai:TW
+thai:TH
 tobagonian:TT
 trinidadian:TT
 tunisian:TN
