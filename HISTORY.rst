@@ -17,7 +17,7 @@ When calculating country mentions, use maximum population of matched entities to
 when multiple countries were mentioned the most often.
 GeoText.index entries now map strings to (country_code, population) tuples instead of just
 country_codes.
-
+Fix errors in nationalities.txt
 
 0.4.0.tubular1 (2019-01-14)
 ++++++++++++++++++
