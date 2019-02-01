@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from collections import defaultdict, namedtuple, Counter, OrderedDict
+from collections import defaultdict, namedtuple, OrderedDict
+from functools import partial
 import re
 import string
 import os
@@ -19,21 +20,26 @@ CITIES = 'cities'
 NATIONALITIES = 'nationalities'
 MATCH_TYPES = {COUNTRIES, ADMIN_DIVISIONS, CITIES, NATIONALITIES}
 
-# Common words that are also nationalities / admin divisions
+# Common words that are also nationalities / admin divisions / cities
 BLACKLIST = {
-    'pole',
+    'bar',
+    'bay',
+    'can',
+    'central',
+    'eastern',
     'north',
     'northern',
-    'western',
-    'central',
+    'of',
+    'pole',
     'southern',
-    'eastern',
+    'university',
+    'western',
 }
 
 
 def read_table(
-    filename, keycols=(0,), valcol=1, sep='\t', comment='#', encoding='utf-8', skip=0,
-    alias_keycol=None, aliases=None, collect_set=False
+    filename, parse_keys=None, parse_value=None, sep='\t', comment='#', encoding='utf-8',
+    skip=0, collect_set=False,
 ):
     """Parse data files from the data directory
 
@@ -42,12 +48,13 @@ def read_table(
     filename: string
         Full path to file
 
-    keycols: list, default [0]
-        A list of at least one int representing the columns to be used as keys
-        for this dictionary
+    parse_keys: callable
+        function that takes a single argument, a list representing a row of data, and returns
+         a set of hashable objects to be used as keys in the dictionary being generated
 
-    valcol: int
-        Index of the column containing the values to be saved into a dictionary
+    parse_values: callable
+        function that takes a single argument, a list representing a row of data, and returns
+         an object to be used as the value in the dictionary being generated
 
     sep : string, default '\t'
         Field delimiter.
@@ -62,14 +69,6 @@ def read_table(
     skip: int, default 0
         Number of lines to skip at the beginning of the file
 
-    alias_keycol: int
-        if not None, this column will be used to look up aliases for this column in the
-        provided `aliases` dict.  For each row, aliases are additional keys that will map
-        the row's value.
-
-    aliases: dict
-        dictionary mapping strings to sets of strings to be used as additional keys for each row
-
     collect_set: bool
         if True, collect values for each row with the same key as a set instead of replacing
         previous values
@@ -77,7 +76,7 @@ def read_table(
     Returns
     -------
     A dictionary with the same length as the number of unique keys in filename, plus associated
-    aliases.  Values may be a strings or sets of strings, depending on the `collect_set` param.
+    aliases.
     """
 
     with io.open(filename, 'r', encoding=encoding) as f:
@@ -90,12 +89,9 @@ def read_table(
 
         d = defaultdict(set) if collect_set else dict()
         for line in lines:
-            columns = line.split(sep)
-            value = columns[valcol].rstrip('\n')
-            keys = {columns[key_index] for key_index in keycols}
-            if alias_keycol is not None:
-                alias_key = columns[alias_keycol]
-                keys |= aliases[alias_key]
+            columns = line.rstrip('\n').split(sep)
+            value = parse_value(columns)
+            keys = parse_keys(columns)
             for key in keys:
                 key = normalize(key.lower())
                 if collect_set:
@@ -110,39 +106,77 @@ def build_index():
 
     Returns
     -------
-    A namedtuple with three fields: nationalities cities countries
+    A namedtuple with five fields: nationalities cities countries admin_divisions meta
     """
 
     # get map of aliases keyed by geonameid
     aliases = read_table(
-        get_data_path('alternateNamesFiltered.txt'), keycols=[1], valcol=3, collect_set=True
+        get_data_path('alternateNamesFiltered.txt'), collect_set=True,
+        parse_keys=lambda row: {row[1]},
+        parse_value=lambda row: row[3],
     )
 
+    # load custom aliases keyed by geonameid
+    custom_aliases = read_table(
+        get_data_path('alternateNamesCustom.txt'), collect_set=True,
+        parse_keys=lambda row: {row[0]},
+        parse_value=lambda row: row[1],
+    )
+    for geoname_id, alias_set in custom_aliases.items():
+        aliases[geoname_id] |= alias_set
+
+    def with_aliases(name_set, alias_key):
+        if alias_key in aliases:
+            name_set.update(aliases[alias_key])
+        return name_set
+
+    PlaceData = namedtuple('PlaceData', ['country', 'population'])
+    def get_place_value(row, country_index=None, pop_index=None):
+            population = 0 if pop_index is None else int(row[pop_index])
+            return PlaceData(row[country_index], population)
 
     # parse http://download.geonames.org/export/dump/countryInfo.txt
     countries = read_table(
-        get_data_path('countryInfo.txt'), keycols=[4], valcol=0, skip=1,
-        alias_keycol=16, aliases=aliases
+        get_data_path('countryInfo.txt'), skip=1,
+        parse_keys=lambda row: with_aliases({row[4]}, row[16]),
+        parse_value=partial(get_place_value, country_index=0, pop_index=7),
     )
+
+    nationalities = read_table(
+        get_data_path('nationalities.txt'), sep=':',
+        parse_keys=lambda row: {row[0]},
+        parse_value=partial(get_place_value, country_index=1),
+    )
+    for n in countries:
+        nationalities.pop(n, None)
+
+    def get_place_keys(row):
+        """Parse geonames.org data for names of cities/administrative_divisions"""
+        geo_id, official_name, name_alias = row[0:3]
+        feature_type, country_code, _, admin1_code = row[7:11]
+        names = with_aliases({official_name, name_alias}, geo_id)
+        for name in list(names):
+            # Add names with country/state abbreviatiosn to better disambiguate cases
+            # like "Cambridge, MA" and "Cambridge, UK"
+            names.add(' '.join((name, country_code)))
+            if country_code == 'GB':
+                names.add(' '.join((name, 'UK')))
+            if admin1_code and not feature_type.startswith('ADM1'):
+                names.add(' '.join((name, admin1_code)))
+        return names
 
     # parse http://download.geonames.org/export/dump/cities15000.zip
     cities = read_table(
-        get_data_path('cities15000.txt'), keycols=[1, 2], valcol=8,
-        alias_keycol=0, aliases=aliases
+        get_data_path('cities15000.txt'),
+        parse_keys=get_place_keys,
+        parse_value=partial(get_place_value, country_index=8, pop_index=14),
     )
-    # load and apply city patches
-    city_patches = read_table(get_data_path('citypatches.txt'))
-    cities.update(city_patches)
-    # Always choose countries over cities
-    cities = {city: country for city, country in cities.items() if city not in countries}
 
-    nationalities = read_table(get_data_path('nationalities.txt'), sep=':')
-    nationalities = {n: country for n, country in nationalities.items() if n not in countries}
-
-    # add top-level country divisions like US States and Japanese Prefectures
+    # add country divisions like US States and Japanese Prefectures
     admin_divisions = read_table(
-        get_data_path('admin_divisions1.txt'), keycols=[1, 2], valcol=8,
-        alias_keycol=0, aliases=aliases
+        get_data_path('adminDivisions15000.txt'),
+        parse_keys=get_place_keys,
+        parse_value=partial(get_place_value, country_index=8, pop_index=14),
     )
 
     meta = defaultdict(set)
@@ -153,9 +187,8 @@ def build_index():
         (COUNTRIES, countries),
     ]:
         for name in index:
-            if name in BLACKLIST:
-                continue
-            meta[name].add(match_type)
+            if name not in BLACKLIST:
+                meta[name].add(match_type)
 
     Index = namedtuple('Index', [NATIONALITIES, CITIES, COUNTRIES, ADMIN_DIVISIONS, 'meta'])
     return Index(nationalities, cities, countries, admin_divisions, meta)
@@ -217,7 +250,7 @@ class GeoText(object):
         if country is not None:
             self.cities = [
                 city for city in self.cities
-                if self.index.cities[city.lower()] == country
+                if self.index.cities[city.lower()].country == country
             ]
             self.admin_divisions = [
                 division for division in self.admin_divisions
@@ -228,31 +261,52 @@ class GeoText(object):
                 if self.index.nationalities[nationality.lower()] == country
             ]
 
-        # Calculate number of country mentions
-        self.country_mentions = [self.index.countries[country.lower()]
-                                 for country in self.countries]
-        self.country_mentions.extend([self.index.nationalities[nationality.lower()]
-                                      for nationality in self.nationalities])
-        self.country_mentions.extend([self.index.cities[city.lower()]
-                                      for city in self.cities
-                                      if city not in self.admin_divisions])
-        self.country_mentions.extend([self.index.admin_divisions[division.lower()]
-                                      for division in self.admin_divisions
-                                      if division not in self.nationalities])
+        # Tabulate the number of times each country was mentioned
+        # Order countries by number of different mentions and break ties using
+        # the maximum population of locations matched
+        max_population = defaultdict(int)
+        mentions = defaultdict(int)
+        seen = set()
+        for match_type in MATCH_TYPES:
+            index = getattr(self.index, match_type)
+            new_matches = []
+            for match_string in parsed[match_type]:
+                country, population = index[match_string.lower()]
+                max_population[country] = max(max_population[country], population)
+                if (country, match_string) not in seen:
+                    # Don't count the same string multiple times for the same country
+                    # This could happen if a string is both a city and an admin_division in the
+                    # same country.
+                    mentions[country] += 1
+                    new_matches.append((country, match_string))
+            # Update "seen" only after each type has been completely processed so that
+            # "China China China" will correctly count as "{'CN': 3}" country_mentions.
+            seen.update(new_matches)
+
         self.country_mentions = OrderedDict(
-            Counter(self.country_mentions).most_common())
+            sorted(
+                mentions.items(),
+                key=lambda x: (x[1], max_population[x[0]]),
+                reverse=True
+            )
+        )
 
     @classmethod
     def parse_aggressive(cls, text):
         tokens = normalize(text).split()
         matches = {match_type: [] for match_type in MATCH_TYPES}
 
-        prev_match_len = 0  # Track match length so we don't include substrings of previous matches
+        # Track match length so we don't include substrings of previous matches
+        # "New York City" should not match "New York" or "York"
+        prev_match_len = 0
         for i in range(len(tokens)):
             prev_match_len = max(prev_match_len - 1, 0)
             # Assumes location names will be 4 words long at most
             for length in range(min(4, len(tokens) - i), prev_match_len, -1):
                 candidate = ' '.join(tokens[i:i + length])
+                if len(candidate) < 3 and any(c.islower() for c in candidate):
+                    # skip 2-char strings like 'la', but not 'LA' or '中国'
+                    continue
                 match_types = cls.index.meta.get(candidate.lower())
                 if not match_types:
                     continue

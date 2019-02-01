@@ -1,0 +1,12 @@
+# San Francisco
+5391959	bay area
+5391959	sf
+# New York City
+5128581	nyc
+5128581	ny
+# Boston
+4930956	new england
+# South Korea
+1835841 korea
+# United Arab Emirates
+290557 uae
