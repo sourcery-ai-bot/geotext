@@ -85,7 +85,7 @@ def read_table(
             next(f)
 
         # filter comment lines
-        lines = (line for line in f if not line.startswith(comment))
+        lines = (line for line in f if line.strip() and not line.startswith(comment))
 
         d = defaultdict(set) if collect_set else dict()
         for line in lines:

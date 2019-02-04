@@ -2,6 +2,10 @@
 
 History
 -------
+0.5.0.tubular2 (2019-02-04)
+++++++++++++++++++
+Fix/cleanup nationalities and custom alias data files.
+
 0.5.0.tubular1 (2019-01-30)
 ++++++++++++++++++
 Instead of adding all top-level administrative divisions, add all administrative divisions with
