@@ -10,3 +10,5 @@
 1835841	korea
 # United Arab Emirates
 290557	uae
+# Antigua and Barbuda
+3576396	antigua
