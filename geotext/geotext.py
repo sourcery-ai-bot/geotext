@@ -239,10 +239,7 @@ class GeoText(object):
             capitalization and some punctuation, and accept a wider range of
             characters.  This may be much slower for long text.
         """
-        if aggressive:
-            parsed = self.parse_aggressive(text)
-        else:
-            parsed = self.parse(text)
+        parsed = self.parse_aggressive(text) if aggressive else self.parse(text)
         self.countries = parsed[COUNTRIES]
         self.admin_divisions = parsed[ADMIN_DIVISIONS]
         self.cities = parsed[CITIES]
